@@ -1,0 +1,104 @@
+#include <iostream>
+#include <mutex>
+
+struct Node
+{
+  int value;
+  Node* next;
+  std::mutex* node_mutex;
+};
+
+class FineGrainedQueue
+{
+public:
+  FineGrainedQueue() {
+    head = nullptr;
+    queue_mutex = new std::mutex;
+  }
+
+  void insert(int value) {
+    Node* new_node = new Node;
+    new_node->value = value;
+    new_node->node_mutex = new std::mutex;
+
+    std::lock_guard<std::mutex> queue_lock(*queue_mutex);
+
+    if (head == nullptr) {
+      head = new_node;
+    } else {
+      Node* curr = head;
+      while (curr->next != nullptr) {
+        curr = curr->next;
+      }
+      curr->next = new_node;
+    }
+  }
+
+  void insertIntoMiddle(int value, int pos) {
+    Node* prev = nullptr;
+    Node* curr = head;
+
+    // Ищем позицию для вставки
+    for (int i = 0; i < pos && curr != nullptr; i++) {
+      prev = curr;
+      curr = curr->next;
+    }
+
+    // Создаем новый узел
+    Node* new_node = new Node;
+    new_node->value = value;
+    new_node->node_mutex = new std::mutex;
+
+    // Вставляем узел в список
+    std::lock(prev->node_mutex, curr->node_mutex);
+    std::lock_guard<std::mutex> prev_lock(*prev->node_mutex, std::adopt_lock);
+    std::lock_guard<std::mutex> curr_lock(*curr->node_mutex, std::adopt_lock);
+
+    if (prev == nullptr) {
+      new_node->next = head;
+      head = new_node;
+    } else {
+      new_node->next = curr;
+      prev->next = new_node;
+    }
+  }
+
+  void remove(int value) {
+    std::lock_guard<std::mutex> queue_lock(*queue_mutex);
+
+    Node* prev = nullptr;
+    Node* curr = head;
+
+    while (curr != nullptr) {
+      if (curr->value == value) {
+        if (prev == nullptr) {
+          head = curr->next;
+        } else {
+          prev->next = curr->next;
+        }
+        delete curr;
+        return;
+      }
+
+      prev = curr;
+      curr = curr->next;
+    }
+  }
+
+  void print() {
+    std::lock_guard<std::mutex> queue_lock(*queue_mutex);
+
+    Node* curr = head;
+
+    while (curr != nullptr) {
+      std::cout << curr->value << " ";
+      curr = curr->next;
+    }
+
+    std::cout << std::endl;
+  }
+
+private:
+  Node* head;
+  std::mutex* queue_mutex;
+};
